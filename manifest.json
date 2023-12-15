@@ -1,0 +1,19 @@
+{
+  "name": "OBS Calculator",
+  "version": "1.0.0",
+  "description": "calculator",
+  "permissions": ["activeTab"],
+  "manifest_version": 3,
+  "author": "serkan",
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "Calculator"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "css": ["./styles.css"],
+      "js": ["main.js"]
+    }
+  ]
+}
