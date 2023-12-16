@@ -1,13 +1,16 @@
 const MIN_FINAL_GRADE = 50;
 const MIN_AVERAGE = 45;
 
+// Dersin adını verir
+// course -> dersin ana container'ı
 const getCourseName = (course) => {
   return course.querySelectorAll("td")[1].innerText.trim();
 };
 
-const getPercentage = (container) => {
-  const percentage = container.querySelectorAll("td")[0].innerText;
-  const indexOfPercentage = container.innerText.indexOf("%");
+// Sınavın yüzdelik değerini verir
+const getPercentage = (exam) => {
+  const percentage = exam.querySelectorAll("td")[0].innerText;
+  const indexOfPercentage = exam.innerText.indexOf("%");
 
   // sınavın yüzdelik etkisi
   let number = "";
@@ -19,98 +22,116 @@ const getPercentage = (container) => {
   return parseFloat(number);
 };
 
-const getExamName = (container) => {
-  return container.querySelectorAll("td")[0].innerText.split("(")[0];
+// Sınavın adını verir
+const getExamName = (exam) => {
+  return exam.querySelectorAll("td")[0].innerText.split("(")[0];
 };
 
-const getGrades = (course) => {
-  const gradesContainer = course
+// Sınavın notunu döndürür
+const getGrade = (exam) => {
+  return exam.querySelectorAll("td")[1].innerText;
+};
+
+// Bir ders için
+// Sınav isimlerini, yüzdeliklerini, ve notlarını
+// Döndürür
+const getExams = (course) => {
+  const examsContainer = course
     .querySelectorAll("td")[3]
     .querySelectorAll("tr");
 
-  const array = [];
+  const exams = [];
 
-  gradesContainer.forEach((container, index) => {
+  examsContainer.forEach((exam, index) => {
+    // İlk satır -> Tür, Not vs.
     if (index === 0) return;
 
-    const examName = getExamName(container);
-    const grade = container.querySelectorAll("td")[1].innerText;
-    const percentage = getPercentage(container);
+    const examName = getExamName(exam);
+    const grade = getGrade(exam);
+    const percentage = getPercentage(exam);
 
-    array.push({ examName: examName, percentage: percentage, grade: grade });
+    exams.push({
+      exam: exam.querySelectorAll("td")[1],
+      examName: examName,
+      percentage: percentage,
+      grade: grade,
+      isEmpty: grade.length === 0,
+      isFinal: examName.includes("Final"),
+    });
   });
 
-  return array;
+  return exams;
 };
 
-// Açıklanmayan sınavlardan toplamda kaç puan almamız gerektiğimizi söylüyor
-// Yüzdeler dahil şekilde
-const getWhatDoWeNeedToPass = (grades) => {
+// Açıklanmayan sınavların toplamı (yüzdeler dahil şekilde)
+// Bu fonksiyonun döndürdüğü değere eşit veya fazla olmalı
+const getWhatDoWeNeedToPass = (exams) => {
   let sum = 0;
-  grades.forEach((grade) => {
-    if (grade.grade.length > 0) {
-      sum += (parseFloat(grade.grade) * grade.percentage) / 100;
+  exams.forEach((exam) => {
+    if (!exam.isEmpty) {
+      sum += (parseFloat(exam.grade) * exam.percentage) / 100;
     }
   });
 
   return MIN_AVERAGE - sum;
 };
 
-const calculate = (grades, whatDoWeNeedToPass) => {
-  // notu girilmemiş dersler
-  // bu iki dersin ortalaması whatDoWeNeedToPass den fazla olmalı veya eşit
-  const notValuatedCourses = grades.filter((grade) => {
-    return grade.grade.length === 0;
+const calculate = (exams) => {
+  // Notu girilmemiş dersler
+  const emptyExams = exams.filter((exam) => {
+    return exam.grade.length === 0;
   });
+
+  const whatDoWeNeedToPass = getWhatDoWeNeedToPass(exams);
 
   const calculations = [];
 
-  if (notValuatedCourses.length === 1) {
-    for (let final = 50; final <= 100; final++) {
-      const eq = (notValuatedCourses[0].percentage * final) / 100;
+  // Kaç tane girilmemiş not var?
+  if (emptyExams.length === 1) {
+    // Sınavın yüzdelik değeri
+    const percentage = emptyExams[0].percentage;
+    const isFinal = emptyExams[0].isFinal;
+
+    for (let ex1 = isFinal ? 50 : 0; ex1 <= 100; ex1 += 0.5) {
+      const eq = (percentage * ex1) / 100;
 
       if (eq >= whatDoWeNeedToPass) {
         calculations.push({
-          final: final,
-          // diff: Math.floor(Math.abs(eq - whatDoWeNeedToPass)),
+          emptyExam: [emptyExams[0]],
+          calculation: [ex1.toFixed(2)],
         });
       }
     }
   }
 
-  // 2 tane girilmeyen ders varsa
-  if (notValuatedCourses.length === 2) {
-    for (let ex1 = 0; ex1 <= 100; ex1++) {
-      for (let final = 50; final <= 100; final++) {
+  if (emptyExams.length === 2) {
+    for (let ex1 = 0; ex1 <= 100; ex1 += 0.1) {
+      for (let ex2 = emptyExams[1].isFinal ? 50 : 0; ex2 <= 100; ex2 += 0.5) {
         const eq =
-          (notValuatedCourses[0].percentage * ex1) / 100 +
-          (notValuatedCourses[1].percentage * final) / 100;
+          (emptyExams[0].percentage * ex1) / 100 +
+          (emptyExams[1].percentage * ex2) / 100;
         if (eq >= whatDoWeNeedToPass) {
           calculations.push({
-            ex1: ex1,
-            final: final,
-            // diff: Math.floor(Math.abs(eq - whatDoWeNeedToPass)),
+            emptyExam: [emptyExams[0], emptyExams[1]],
+            calculation: [ex1.toFixed(2), ex2.toFixed(2)],
           });
         }
       }
     }
   }
 
-  // 3 tane girilmeyen ders varsa bütün olasılıklar
-  if (notValuatedCourses.length === 3) {
-    for (let ex1 = 0; ex1 <= 100; ex1++) {
-      for (let ex2 = 0; ex2 <= 100; ex2++) {
-        for (let final = 50; final <= 100; final++) {
+  if (emptyExams.length === 3) {
+    for (let ex1 = 0; ex1 <= 100; ex1 += 0.1) {
+      for (let ex2 = 0; ex2 <= 100; ex2 += 0.1) {
+        for (let ex3 = emptyExams[2].isFinal ? 50 : 0; ex3 <= 100; ex3 += 0.5) {
           const eq =
-            (notValuatedCourses[0].percentage * ex1) / 100 +
-            (notValuatedCourses[1].percentage * ex2) / 100 +
-            (notValuatedCourses[2].percentage * final) / 100;
+            (emptyExams[0].percentage * ex1) / 100 +
+            (emptyExams[1].percentage * ex2) / 100 +
+            (emptyExams[2].percentage * ex3) / 100;
           if (eq >= whatDoWeNeedToPass) {
             calculations.push({
-              ex1: ex1,
-              ex2: ex2,
-              final: final,
-              // diff: Math.floor(Math.abs(eq - whatDoWeNeedToPass)),
+              emptyExam: [emptyExams[0], emptyExams[1], emptyExams[2]],
+              calculation: [ex1.toFixed(2), ex2.toFixed(2), ex3.toFixed(2)],
             });
           }
         }
@@ -118,24 +139,13 @@ const calculate = (grades, whatDoWeNeedToPass) => {
     }
   }
 
-  return calculations;
-};
+  // Final notuna göre sırala, önce en düşük
+  return calculations.sort((a, b) => {
+    const lastElementA = a.calculation[a.calculation.length - 1];
+    const lastElementB = b.calculation[b.calculation.length - 1];
 
-const getEmptyGrades = (course) => {
-  const tbody = course.querySelector("tbody");
-  const trs = tbody.querySelectorAll("tr");
-
-  const emptyGrades = [];
-
-  trs.forEach((tr, index) => {
-    if (index === 0) return;
-
-    const td = tr.querySelectorAll("td");
-
-    if (td[1].innerText === "") emptyGrades.push(td[1]);
+    return lastElementA - lastElementB;
   });
-
-  return emptyGrades;
 };
 
 // Her bir elaman bir dersin satırını temsil ediyor
@@ -143,7 +153,8 @@ const getEmptyGrades = (course) => {
 // courses[1] -> İşletim Sistemleri gibi
 let courses = null;
 
-function checkForCourses() {
+// courses element'i oluşana kadar bekle
+const checkForCourses = () => {
   courses = document.querySelectorAll(
     "#SinavNotGoruntuleme > table > tbody > *"
   );
@@ -152,88 +163,133 @@ function checkForCourses() {
     clearInterval(intervalId); // Stop the interval when courses are found
     main();
   }
-}
-
-// Check for courses every second
+};
 const intervalId = setInterval(checkForCourses, 1000);
 
+// Diğer notları göstereceğimiz element
 const createPopup = (info) => {
-  // diğer notları göstereceğimiz element
-  const elem = document.createElement("div");
-  elem.classList.add("none");
+  const popup = document.createElement("div");
+  popup.classList.add("none");
 
-  elem.innerHTML += `${info.courseName} | Diğer Eşleşmeler<br/>`;
+  popup.innerHTML += `${info.courseName} | Diğer Eşleşmeler<br/>`;
 
   // en düşük diğer 10 not
   for (let i = 1; i < 10; i++) {
-    const grade = info.calculations[i];
+    const grades = info.calculations[i].calculation;
     let pair = "";
-    Object.keys(grade).forEach((g) => {
-      pair += grade[g] + " ";
+    grades.forEach((grade) => {
+      pair += grade + " ";
     });
-    elem.innerHTML += `${pair}<br/>`;
+    popup.innerHTML += `${pair}<br/>`;
   }
 
-  document.body.appendChild(elem);
+  document.body.appendChild(popup);
 
-  return elem;
+  return popup;
+};
+
+// Girilmemiş notların yazıldığı input elementi
+const createInput = (lowestGrade, infoIndex) => {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.classList.add("empty-grade");
+  input.value = lowestGrade;
+  input.setAttribute("data-info-index", infoIndex);
+
+  return input;
 };
 
 const infos = [];
 
 const main = () => {
-  courses.forEach((course) => {
-    // dersin adı
+  courses.forEach((course, index) => {
+    course.setAttribute("data-course-index", index);
+
+    // Dersin Adı
     const courseName = getCourseName(course);
 
-    // boş olan notların td'leri
-    const emptyGrades = getEmptyGrades(course);
+    // Bir dersin sınavları
+    const exams = getExams(course);
 
-    // dersin tüm notları
-    const grades = getGrades(course);
-
-    // diğer sınavların toplamının whatDoWeNeedToPass olması lazım
-    const whatDoWeNeedToPass = getWhatDoWeNeedToPass(grades);
-
-    // olasılıkların hesaplamaları
-    const calculations = calculate(grades, whatDoWeNeedToPass);
-
-    const sortedByFinal = calculations.sort((a, b) => a.final - b.final);
+    // Hesaplamalar
+    const calculations = calculate(exams);
 
     infos.push({
       course: course,
       courseName: courseName,
-      grades: grades,
-      whatDoWeNeedToPass: whatDoWeNeedToPass,
-      calculations: sortedByFinal,
-      emptyGrades: emptyGrades,
+      exams: exams,
+      calculations: calculations,
     });
   });
 
-  infos.forEach((info) => {
-    const lowestGrade = info.calculations[0];
+  infos.forEach((info, infoIndex) => {
+    const lowestCalculation = info.calculations[0];
 
-    // ders elementi
+    // Dersin element'i
     const course = info.course;
 
-    // boş olan notlar üzerinde yapılacak işlemler
-    info.emptyGrades.forEach((emptyGrade, index) => {
-      emptyGrade.classList.add("empty-grade");
+    // Girilmemiş notlar üzerinde yapılacak işlemler
+    lowestCalculation.emptyExam.forEach((emptyExam, index) => {
+      const lowestGrade = lowestCalculation.calculation[index];
 
-      // en düşük notu td'lere yazdırıyoruz
-      emptyGrade.innerText = lowestGrade[Object.keys(lowestGrade)[index]];
+      const input = createInput(lowestGrade, infoIndex);
 
-      const elem = createPopup(info);
+      emptyExam.exam.appendChild(input);
+
+      const popup = createPopup(info);
 
       course.addEventListener("mouseover", () => {
-        elem.classList.remove("none");
-        elem.classList.add("hover-item");
+        popup.classList.remove("none");
+        popup.classList.add("hover-item");
       });
 
       course.addEventListener("mouseleave", () => {
-        elem.classList.add("none");
-        elem.classList.remove("hover-item");
+        popup.classList.add("none");
+        popup.classList.remove("hover-item");
       });
+    });
+  });
+
+  // Daha önce yarattığımız inputlar
+  const inputs = document.querySelectorAll("[data-info-index]");
+
+  inputs.forEach((input) => {
+    input.addEventListener("change", (e) => {
+      const relatedCourse = e.target.closest("[data-course-index]");
+      let currentExam;
+      let shouldBreak = false;
+
+      const exams = getExams(relatedCourse);
+
+      exams.forEach((exam) => {
+        if (exam.exam === e.target.closest("td")) {
+          if (exam.isFinal && e.target.value < 50) {
+            alert("KALDIN!");
+            shouldBreak = true;
+          }
+
+          exam.grade = e.target.value;
+          exam.isEmpty = false;
+          currentExam = exam;
+        }
+      });
+
+      if (shouldBreak) {
+        return;
+      }
+
+      const calculations = calculate(exams);
+
+      // TODO: Burası 2 den fazla açıklanmayan sınav için sorun çıkaracak
+      exams.forEach((exam, index) => {
+        console.log(exam);
+        if (exam.isEmpty) {
+          exam.exam.querySelector("input").value =
+            calculations[0].calculation[0];
+        }
+      });
+
+      currentExam.isEmpty = true;
     });
   });
 };
