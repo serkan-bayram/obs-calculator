@@ -1,6 +1,27 @@
 const MIN_FINAL_GRADE = 50;
 const MIN_AVERAGE = 45;
 
+let isStartButtonClicked = false;
+
+const getStartButton = () => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.classList.add("start-button");
+  button.innerText = "Hesaplamaya Başla";
+  button.id = "start-button";
+
+  document.body.appendChild(button);
+
+  button.addEventListener("click", () => {
+    startButton.innerText = "Hesaplanıyor...";
+    isStartButtonClicked = true;
+  });
+};
+
+getStartButton();
+
+const startButton = document.querySelector("#start-button");
+
 // Dersin adını verir
 // course -> dersin ana container'ı
 const getCourseName = (course) => {
@@ -29,7 +50,8 @@ const getExamName = (exam) => {
 
 // Sınavın notunu döndürür
 const getGrade = (exam) => {
-  return exam.querySelectorAll("td")[1].innerText;
+  const grade = exam.querySelectorAll("td")[1].innerText;
+  return grade === "GM" ? "" : grade;
 };
 
 // Bir ders için
@@ -92,28 +114,28 @@ const calculate = (exams) => {
     const percentage = emptyExams[0].percentage;
     const isFinal = emptyExams[0].isFinal;
 
-    for (let ex1 = isFinal ? 50 : 0; ex1 <= 100; ex1 += 0.5) {
+    for (let ex1 = isFinal ? 50 : 0; ex1 <= 100; ex1 += 1) {
       const eq = (percentage * ex1) / 100;
 
       if (eq >= whatDoWeNeedToPass) {
         calculations.push({
           emptyExam: [emptyExams[0]],
-          calculation: [ex1.toFixed(2)],
+          calculation: [ex1],
         });
       }
     }
   }
 
   if (emptyExams.length === 2) {
-    for (let ex1 = 0; ex1 <= 100; ex1 += 0.1) {
-      for (let ex2 = emptyExams[1].isFinal ? 50 : 0; ex2 <= 100; ex2 += 0.5) {
+    for (let ex1 = 0; ex1 <= 100; ex1 += 1) {
+      for (let ex2 = emptyExams[1].isFinal ? 50 : 0; ex2 <= 100; ex2 += 1) {
         const eq =
           (emptyExams[0].percentage * ex1) / 100 +
           (emptyExams[1].percentage * ex2) / 100;
         if (eq >= whatDoWeNeedToPass) {
           calculations.push({
             emptyExam: [emptyExams[0], emptyExams[1]],
-            calculation: [ex1.toFixed(2), ex2.toFixed(2)],
+            calculation: [ex1, ex2],
           });
         }
       }
@@ -121,9 +143,9 @@ const calculate = (exams) => {
   }
 
   if (emptyExams.length === 3) {
-    for (let ex1 = 0; ex1 <= 100; ex1 += 0.1) {
-      for (let ex2 = 0; ex2 <= 100; ex2 += 0.1) {
-        for (let ex3 = emptyExams[2].isFinal ? 50 : 0; ex3 <= 100; ex3 += 0.5) {
+    for (let ex1 = 0; ex1 <= 100; ex1 += 1) {
+      for (let ex2 = 0; ex2 <= 100; ex2 += 1) {
+        for (let ex3 = emptyExams[2].isFinal ? 50 : 0; ex3 <= 100; ex3 += 1) {
           const eq =
             (emptyExams[0].percentage * ex1) / 100 +
             (emptyExams[1].percentage * ex2) / 100 +
@@ -131,7 +153,7 @@ const calculate = (exams) => {
           if (eq >= whatDoWeNeedToPass) {
             calculations.push({
               emptyExam: [emptyExams[0], emptyExams[1], emptyExams[2]],
-              calculation: [ex1.toFixed(2), ex2.toFixed(2), ex3.toFixed(2)],
+              calculation: [ex1, ex2, ex3],
             });
           }
         }
@@ -160,8 +182,10 @@ const checkForCourses = () => {
   );
 
   if (courses.length > 0) {
-    clearInterval(intervalId); // Stop the interval when courses are found
-    main();
+    if (isStartButtonClicked) {
+      clearInterval(intervalId); // Stop the interval when courses are found
+      main();
+    }
   }
 };
 const intervalId = setInterval(checkForCourses, 1000);
@@ -175,12 +199,14 @@ const createPopup = (info) => {
 
   // en düşük diğer 10 not
   for (let i = 1; i < 10; i++) {
-    const grades = info.calculations[i].calculation;
-    let pair = "";
-    grades.forEach((grade) => {
-      pair += grade + " ";
+    const randomCalculation =
+      info.calculations[Math.floor(Math.random() * info.calculations.length)]
+        .calculation;
+    let pair = "| ";
+    randomCalculation.forEach((grade) => {
+      pair += grade + " | ";
     });
-    popup.innerHTML += `${pair}<br/>`;
+    popup.innerHTML += `${pair} <br/>`;
   }
 
   document.body.appendChild(popup);
@@ -228,6 +254,8 @@ const main = () => {
     // Dersin element'i
     const course = info.course;
 
+    const popup = createPopup(info);
+
     // Girilmemiş notlar üzerinde yapılacak işlemler
     lowestCalculation.emptyExam.forEach((emptyExam, index) => {
       const lowestGrade = lowestCalculation.calculation[index];
@@ -235,8 +263,6 @@ const main = () => {
       const input = createInput(lowestGrade, infoIndex);
 
       emptyExam.exam.appendChild(input);
-
-      const popup = createPopup(info);
 
       course.addEventListener("mouseover", () => {
         popup.classList.remove("none");
@@ -280,16 +306,19 @@ const main = () => {
 
       const calculations = calculate(exams);
 
-      // TODO: Burası 2 den fazla açıklanmayan sınav için sorun çıkaracak
-      exams.forEach((exam, index) => {
-        console.log(exam);
-        if (exam.isEmpty) {
-          exam.exam.querySelector("input").value =
-            calculations[0].calculation[0];
-        }
+      const emptyExams = exams.filter((exam) => {
+        return exam.grade.length === 0;
+      });
+
+      // TODO: Burası 2 den fazla açıklanmayan sınav için sorun çıkarabilir
+      emptyExams.forEach((exam, index) => {
+        exam.exam.querySelector("input").value =
+          calculations[0].calculation[index];
       });
 
       currentExam.isEmpty = true;
     });
   });
+
+  startButton.classList.add("none");
 };
